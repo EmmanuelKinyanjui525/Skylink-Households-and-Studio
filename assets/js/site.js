@@ -19,6 +19,7 @@
     var n = (to === "studio") ? C.whatsappStudio : C.whatsappGeneral;
     return "https://wa.me/" + n + "?text=" + encodeURIComponent(msg);
   }
+  window.SkylinkWA = wa;
   function icon(id, size){ return '<svg' + (size ? ' width="'+size+'" height="'+size+'"' : '') + ' aria-hidden="true"><use href="#'+id+'"/></svg>'; }
 
   /* ---------- MENU STRUCTURE (label, file, page id) ---------- */
@@ -111,7 +112,7 @@
         '<div><h4>Skylink Studios</h4><ul>'+s+'</ul></div>' +
         '<div><h4>Contact</h4><ul class="footer-contact">' +
           '<li>Households: <a href="tel:'+C.householdsPhone.tel+'">'+C.householdsPhone.display+'</a></li>' +
-          '<li>Studio: <a href="tel:'+C.studioPhones[1].tel+'">'+C.studioPhones[1].display+'</a></li>' +
+          '<li>Studio: <a href="tel:'+C.studioPhones[0].tel+'">'+C.studioPhones[0].display+'</a></li>' +
           '<li><a href="mailto:'+C.email+'">'+C.email+'</a></li>' +
           '<li><a href="'+u("about.html")+'">About the Business</a></li><li><a href="'+u("contact.html")+'">Contact</a></li></ul></div>' +
       '</div>' +
@@ -208,7 +209,7 @@
   /* ---------- PRODUCT CARDS ---------- */
   function cardHTML(p){
     var img = p.img
-      ? '<div class="ph-photo"><img src="'+u(p.img)+'" alt="'+esc(p.name)+'" loading="lazy"></div>'
+      ? '<div class="ph-photo"><img src="'+u(p.img)+'" alt="'+esc(p.name)+'" loading="lazy" style="object-position:'+(p.pos || "50% 50%")+'"></div>'
       : '<div class="ph-img icon-tile">'+icon(p.icon || "i-image")+'</div>';
     var price = (p.price == null) ? "Ask for price" : money(p.price);
     var msg = (p.price == null)
@@ -219,11 +220,14 @@
       '<h3 class="product-name">'+esc(p.name)+'</h3><p class="product-desc">'+esc(p.desc)+'</p>' +
       '<div class="product-meta"><span class="product-price">'+price+'</span><span class="product-avail low">Ask availability</span></div>' +
       '<div class="product-actions"><a class="btn btn-green btn-sm" href="'+wa(msg)+'" target="_blank" rel="noopener">Ask on WhatsApp</a>' +
-      '<a class="btn btn-outline btn-sm" href="'+u("households/"+p.page+".html")+'#'+p.id+'">View Product</a></div></div></article>';
+      '<a class="btn btn-outline btn-sm view-product" data-id="'+p.id+'" href="'+u("households/"+p.page+".html")+'#'+p.id+'">View Product</a></div></div></article>';
   }
   document.querySelectorAll("[data-products]").forEach(function(box){
     var only = box.getAttribute("data-products");           // "all" or a page name
-    var list = PRODUCTS.filter(function(p){ return only === "all" || p.page === only; });
+    var list = PRODUCTS.filter(function(p){ return only === "all" || p.page === only; })
+      .map(function(p, i){ return { p:p, i:i }; })
+      .sort(function(a, b){ return ((b.p.img ? 1 : 0) - (a.p.img ? 1 : 0)) || (a.i - b.i); })   /* products with photos first */
+      .map(function(x){ return x.p; });
     var grid = box.querySelector(".product-grid");
     function draw(cat){
       var shown = list.filter(function(p){ return !cat || cat === "All" || p.category === cat; });
@@ -248,6 +252,50 @@
       });
     }
     draw("All");
+  });
+
+
+  /* ---------- PRODUCT PHOTO GALLERY (built from products.js) ---------- */
+  document.querySelectorAll("[data-product-gallery]").forEach(function(box){
+    box.innerHTML = PRODUCTS.filter(function(p){ return p.img; }).map(function(p){
+      return '<figure><a class="pic view-product" data-id="'+p.id+'" href="'+u("households/"+p.page+".html")+'#'+p.id+'"><img src="'+u(p.img)+'" alt="'+esc(p.name)+'" loading="lazy" style="object-position:'+(p.pos || "50% 50%")+'"></a>' +
+        '<figcaption>'+esc(p.name)+'<a class="view-product" data-id="'+p.id+'" href="'+u("households/"+p.page+".html")+'#'+p.id+'">View product</a></figcaption></figure>';
+    }).join("");
+  });
+
+  /* ---------- VIEW PRODUCT (photo + details in a pop-up) ---------- */
+  function productMsg(p){
+    return (p.price == null)
+      ? "Hi Skylink, I'm interested in the " + p.name + ". Could you tell me the price and if it is available?"
+      : "Hi Skylink, I'm interested in the " + p.name + " priced at " + money(p.price) + ". Is it available?";
+  }
+  var pv = document.createElement("div");
+  pv.className = "pv"; pv.id = "pvModal"; pv.setAttribute("role","dialog"); pv.setAttribute("aria-modal","true"); pv.setAttribute("aria-label","Product details");
+  pv.innerHTML = '<div class="pv-card"><button class="pv-x" type="button" aria-label="Close">&times;</button><div class="pv-img"></div><div class="pv-body"></div></div>';
+  body.appendChild(pv);
+  var pvLast = null;
+  function closePv(){ pv.classList.remove("open"); body.style.overflow = ""; if(pvLast) pvLast.focus(); }
+  function openPv(p, trigger){
+    pvLast = trigger;
+    pv.querySelector(".pv-img").innerHTML = p.img ? '<img src="'+u(p.img)+'" alt="'+esc(p.name)+'">' : '<div class="ph-img icon-tile">'+icon(p.icon || "i-image")+'</div>';
+    pv.querySelector(".pv-body").innerHTML = '<span class="product-cat">'+esc(p.category)+'</span><h3 class="product-name" style="font-size:1.4rem">'+esc(p.name)+'</h3>' +
+      '<p class="product-desc" style="flex:none">'+esc(p.desc)+'</p>' +
+      '<div class="product-meta"><span class="product-price">'+((p.price == null) ? "Ask for price" : money(p.price))+'</span><span class="product-avail low">Ask availability</span></div>' +
+      '<div class="product-actions"><a class="btn btn-green" href="'+wa(productMsg(p))+'" target="_blank" rel="noopener">Ask on WhatsApp</a>' +
+      '<a class="btn btn-outline" href="tel:'+C.householdsPhone.tel+'">Call '+C.householdsPhone.display+'</a></div>';
+    pv.classList.add("open"); body.style.overflow = "hidden"; pv.querySelector(".pv-x").focus();
+  }
+  pv.querySelector(".pv-x").addEventListener("click", closePv);
+  pv.addEventListener("click", function(e){ if(e.target === pv) closePv(); });
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape" && pv.classList.contains("open")) closePv(); });
+  document.addEventListener("click", function(e){
+    var a = e.target.closest ? e.target.closest(".view-product") : null; if(!a) return;
+    var p = PRODUCTS.filter(function(x){ return x.id === a.getAttribute("data-id"); })[0]; if(!p) return;
+    e.preventDefault(); openPv(p, a);
+  });
+  document.addEventListener("click", function(e){
+    var im = e.target.closest ? e.target.closest(".product-card .ph-photo, .product-card .icon-tile") : null; if(!im) return;
+    var card = im.closest(".product-card"); var p = PRODUCTS.filter(function(x){ return x.id === card.id; })[0]; if(p) openPv(p, im);
   });
 
   /* ---------- SCROLL REVEAL ---------- */

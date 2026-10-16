@@ -6,7 +6,7 @@
 window.SKYLINK = {
   // WhatsApp numbers
   whatsappGeneral: "254723464787",   // Households, Chama, general enquiries  (0723 464 787)
-  whatsappStudio:  "254723560788",   // Skylink Studios bookings              (0723 560 788)
+  whatsappStudio:  "254704144115",   // Skylink Studios bookings              (0704 144 115, as on the studio portfolio)
 
   // Households phone (clickable on the site)
   householdsPhone: { display: "0723 464 787", tel: "+254723464787" },
